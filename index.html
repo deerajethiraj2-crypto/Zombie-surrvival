@@ -4,9 +4,564 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zombie Survival - Ultimate Apocalypse</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="description" content="An intense 2D top-down zombie survival game. Fight waves of zombies, collect weapons, and survive as long as you can!">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23ff0000' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='%23fff' text-anchor='middle' dominant-baseline='central'>🧟</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #000;
+            color: #fff;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: linear-gradient(180deg, #2d2d2d 0%, #1a1a1a 100%);
+            border-bottom: 1px solid #444;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 56px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .top-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 2px 6px rgba(255,0,0,0.3);
+        }
+
+        .app-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+
+        .top-bar-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .top-btn {
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .top-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .top-btn:active {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .dot-menu {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .dot-menu:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Main Content */
+        #game-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0a0a0a;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #000;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Menu Overlay */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .menu-overlay.hidden {
+            display: none;
+        }
+
+        .menu-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 0, 0, 0.2);
+            animation: menuSlideIn 0.3s ease;
+        }
+
+        @keyframes menuSlideIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .game-title {
+            font-size: 48px;
+            color: #ff0000;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+            margin-bottom: 10px;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                text-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+            }
+            50% {
+                text-shadow: 0 0 40px rgba(255, 0, 0, 1);
+            }
+        }
+
+        .game-subtitle {
+            text-align: center;
+            color: #00ff00;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .menu-btn {
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: 1px solid #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff0000;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .menu-btn:hover {
+            background: #ff0000;
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+            transform: translateY(-2px);
+        }
+
+        .menu-btn:active {
+            transform: translateY(0);
+        }
+
+        /* UI Overlay */
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            font-family: 'Courier New', monospace;
+        }
+
+        #hud {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+        }
+
+        /* HUD Elements */
+        .bar-container {
+            position: absolute;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #555;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .bar-fill.health {
+            background: linear-gradient(90deg, #ff0000, #ff6666);
+        }
+
+        .bar-fill.armor {
+            background: linear-gradient(90deg, #4169e1, #87ceeb);
+        }
+
+        .bar-fill.stamina {
+            background: linear-gradient(90deg, #ffaa00, #ffdd00);
+        }
+
+        .bar-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: white;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+            font-size: 11px;
+        }
+
+        #health-bar {
+            top: 80px;
+            left: 20px;
+            width: 220px;
+        }
+
+        #armor-bar {
+            top: 110px;
+            left: 20px;
+            width: 220px;
+        }
+
+        #stamina-bar {
+            top: 140px;
+            left: 20px;
+            width: 220px;
+        }
+
+        /* Weapon Display */
+        #weapon-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 14px;
+            color: #fff;
+            border: 1px solid #ff0000;
+            padding: 12px 16px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.7);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+        }
+
+        #weapon-icon {
+            font-size: 24px;
+            margin-left: 8px;
+        }
+
+        /* Ammo Display */
+        #ammo-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 8px rgba(0, 255, 0, 0.8);
+            margin-top: 50px;
+        }
+
+        /* Wave Counter */
+        #wave-counter {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff00;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px 16px;
+            border: 1px solid #00ff00;
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        /* Stats Display */
+        #level-display {
+            position: absolute;
+            top: 20px;
+            left: 260px;
+            font-size: 13px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border: 1px solid #00ff00;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        #money-display {
+            position: absolute;
+            top: 110px;
+            left: 260px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffdd00;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border: 1px solid #ffdd00;
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(255, 221, 0, 0.2);
+        }
+
+        /* Minimap */
+        #minimap {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            border: 1px solid #ff0000;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        #minimapCanvas {
+            display: block;
+        }
+
+        /* Objectives */
+        #objectives {
+            position: absolute;
+            bottom: 190px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #ff0000;
+            border-radius: 6px;
+            padding: 12px 16px;
+            max-width: 280px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        #objectives h3 {
+            color: #ff0000;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        #objectives-list {
+            font-size: 11px;
+            line-height: 1.6;
+            color: #fff;
+        }
+
+        /* FPS Counter */
+        #fps-counter {
+            position: absolute;
+            bottom: 20px;
+            left: 200px;
+            font-size: 11px;
+            color: #00ff00;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 12px;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+        }
+
+        /* Settings */
+        .settings-group {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .settings-group label {
+            flex: 1;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .settings-group input[type="range"],
+        .settings-group select {
+            flex: 2;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .settings-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .menu-info {
+            text-align: center;
+            color: #fff;
+            border-top: 1px solid #ff0000;
+            padding-top: 20px;
+            font-size: 14px;
+        }
+
+        .menu-info p {
+            margin: 8px 0;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ff0000;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00ff00;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 10px 12px;
+                height: 48px;
+            }
+
+            .app-title {
+                font-size: 14px;
+            }
+
+            .top-btn {
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+
+            .menu-content {
+                padding: 20px;
+            }
+
+            .game-title {
+                font-size: 36px;
+            }
+
+            #health-bar, #armor-bar, #stamina-bar {
+                width: 180px;
+                height: 20px;
+                font-size: 10px;
+            }
+
+            #minimap {
+                width: 120px;
+                height: 120px;
+            }
+
+            #objectives {
+                max-width: 200px;
+                font-size: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <!-- Chrome-like Top Bar -->
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <div class="app-icon">🧟</div>
+            <div class="app-title">Zombie Survival</div>
+        </div>
+        <div class="top-bar-right">
+            <button class="top-btn" id="fullscreen-btn" title="Fullscreen">⛶</button>
+            <button class="dot-menu" title="Menu">⋮</button>
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         <div id="ui-overlay">
@@ -58,11 +613,11 @@
             <h1 class="game-title">🧟 ZOMBIE SURVIVAL 🧟</h1>
             <p class="game-subtitle">Ultimate Apocalypse Edition</p>
             <div class="menu-buttons">
-                <button id="btn-survival" class="menu-btn">Survival Mode</button>
-                <button id="btn-campaign" class="menu-btn">Campaign Mode</button>
-                <button id="btn-settings" class="menu-btn">Settings</button>
-                <button id="btn-achievements" class="menu-btn">Achievements</button>
-                <button id="btn-stats" class="menu-btn">Statistics</button>
+                <button id="btn-survival" class="menu-btn">▶ Survival Mode</button>
+                <button id="btn-campaign" class="menu-btn">📖 Campaign Mode</button>
+                <button id="btn-settings" class="menu-btn">⚙ Settings</button>
+                <button id="btn-achievements" class="menu-btn">🏆 Achievements</button>
+                <button id="btn-stats" class="menu-btn">📊 Statistics</button>
             </div>
             <div class="menu-info">
                 <p>High Score: <span id="high-score">0</span></p>
@@ -71,86 +626,29 @@
         </div>
     </div>
 
-    <!-- Campaign Selection Menu -->
-    <div id="campaign-menu" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h2>Campaign Mode</h2>
-            <div id="level-select" class="level-grid"></div>
-            <button id="btn-back-campaign" class="menu-btn">Back</button>
-        </div>
-    </div>
-
-    <!-- Level Intro Screen -->
-    <div id="level-intro" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h2 id="level-title">Level 1: Urban Awakening</h2>
-            <p id="level-description"></p>
-            <div id="level-objectives"></div>
-            <div id="level-stats">
-                <p>Difficulty: <span id="level-difficulty">Normal</span></p>
-                <p>Estimated Time: <span id="level-time">10 minutes</span></p>
-                <p>Recommended Weapons: <span id="level-weapons"></span></p>
-            </div>
-            <button id="btn-start-level" class="menu-btn">Start Level</button>
-            <button id="btn-back-level" class="menu-btn">Back to Campaign</button>
-        </div>
-    </div>
-
-    <!-- Level Complete Screen -->
-    <div id="level-complete" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h2>🎉 Level Complete!</h2>
-            <div id="level-results"></div>
-            <div id="stars-display"></div>
-            <button id="btn-next-level" class="menu-btn">Next Level</button>
-            <button id="btn-retry-level" class="menu-btn">Retry</button>
-            <button id="btn-back-campaign-complete" class="menu-btn">Back to Campaign</button>
-        </div>
-    </div>
-
-    <!-- Game Over Screen -->
-    <div id="game-over" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h1>💀 GAME OVER 💀</h1>
-            <div id="game-over-stats"></div>
-            <button id="btn-restart" class="menu-btn">Restart</button>
-            <button id="btn-menu" class="menu-btn">Main Menu</button>
-        </div>
-    </div>
-
-    <!-- Pause Menu -->
-    <div id="pause-menu" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h2>PAUSED</h2>
-            <button id="btn-resume" class="menu-btn">Resume</button>
-            <button id="btn-settings-pause" class="menu-btn">Settings</button>
-            <button id="btn-menu-pause" class="menu-btn">Main Menu</button>
-        </div>
-    </div>
-
     <!-- Settings Menu -->
     <div id="settings-menu" class="menu-overlay hidden">
         <div class="menu-content">
-            <h2>Settings</h2>
+            <h2 style="color: #ff0000; margin-bottom: 20px;">⚙ Settings</h2>
             <div class="settings-group">
                 <label>Master Volume</label>
                 <input id="volume-master" type="range" min="0" max="100" value="80">
-                <span id="volume-value">80%</span>
+                <span style="color: #00ff00; font-weight: bold;">80%</span>
             </div>
             <div class="settings-group">
                 <label>Music Volume</label>
                 <input id="volume-music" type="range" min="0" max="100" value="60">
-                <span id="music-value">60%</span>
+                <span style="color: #00ff00; font-weight: bold;">60%</span>
             </div>
             <div class="settings-group">
                 <label>SFX Volume</label>
                 <input id="volume-sfx" type="range" min="0" max="100" value="80">
-                <span id="sfx-value">80%</span>
+                <span style="color: #00ff00; font-weight: bold;">80%</span>
             </div>
             <div class="settings-group">
                 <label>Mouse Sensitivity</label>
                 <input id="mouse-sensitivity" type="range" min="0.5" max="2" step="0.1" value="1">
-                <span id="sensitivity-value">1.0x</span>
+                <span style="color: #00ff00; font-weight: bold;">1.0x</span>
             </div>
             <div class="settings-group">
                 <label>Graphics Quality</label>
@@ -161,12 +659,6 @@
                 </select>
             </div>
             <div class="settings-group">
-                <label>
-                    <input id="fullscreen-toggle" type="checkbox">
-                    Fullscreen
-                </label>
-            </div>
-            <div class="settings-group">
                 <label>Difficulty</label>
                 <select id="difficulty-select">
                     <option value="easy">Easy</option>
@@ -175,38 +667,27 @@
                     <option value="nightmare">Nightmare</option>
                 </select>
             </div>
-            <button id="btn-back-settings" class="menu-btn">Back</button>
+            <button id="btn-back-settings" class="menu-btn" style="width: 100%;">← Back</button>
         </div>
     </div>
 
-    <!-- Achievements Menu -->
-    <div id="achievements-menu" class="menu-overlay hidden">
+    <!-- Pause Menu -->
+    <div id="pause-menu" class="menu-overlay hidden">
         <div class="menu-content">
-            <h2>Achievements</h2>
-            <div id="achievements-list" class="achievements-grid"></div>
-            <button id="btn-back-achievements" class="menu-btn">Back</button>
+            <h2 style="color: #ff0000; margin-bottom: 30px; text-align: center;">⏸ PAUSED</h2>
+            <button id="btn-resume" class="menu-btn">▶ Resume Game</button>
+            <button id="btn-settings-pause" class="menu-btn">⚙ Settings</button>
+            <button id="btn-menu-pause" class="menu-btn">🏠 Main Menu</button>
         </div>
     </div>
 
-    <!-- Statistics Menu -->
-    <div id="stats-menu" class="menu-overlay hidden">
+    <!-- Game Over Screen -->
+    <div id="game-over" class="menu-overlay hidden">
         <div class="menu-content">
-            <h2>Statistics</h2>
-            <div id="stats-display" class="stats-grid"></div>
-            <button id="btn-reset-stats" class="menu-btn">Reset Stats</button>
-            <button id="btn-back-stats" class="menu-btn">Back</button>
-        </div>
-    </div>
-
-    <!-- Inventory Menu -->
-    <div id="inventory-menu" class="menu-overlay hidden">
-        <div class="menu-content">
-            <h2>Inventory</h2>
-            <div class="inventory-container">
-                <div id="inventory-grid" class="inventory-grid"></div>
-                <div id="inventory-info" class="inventory-info"></div>
-            </div>
-            <button id="btn-close-inventory" class="menu-btn">Close</button>
+            <h1 class="game-title" style="margin-bottom: 30px;">💀 GAME OVER 💀</h1>
+            <div id="game-over-stats" style="background: rgba(0,0,0,0.5); border: 1px solid #ff0000; padding: 20px; border-radius: 6px; margin-bottom: 30px; color: #00ff00;"></div>
+            <button id="btn-restart" class="menu-btn">🔄 Restart</button>
+            <button id="btn-menu" class="menu-btn">🏠 Main Menu</button>
         </div>
     </div>
 
@@ -223,5 +704,26 @@
     <script src="js/achievements.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/game.js"></script>
+
+    <script>
+        // Chrome-like features
+        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+            const canvas = document.getElementById('gameCanvas');
+            if (!document.fullscreenElement) {
+                canvas.requestFullscreen().catch(err => {
+                    console.log('Fullscreen not available');
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        // Menu button
+        document.querySelector('.dot-menu').addEventListener('click', () => {
+            if (window.gameInstance && window.gameInstance.gameState === 'PLAYING') {
+                window.gameInstance.togglePause();
+            }
+        });
+    </script>
 </body>
 </html>
