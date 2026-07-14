@@ -1,52 +1,54 @@
 class ZombieSurvivalGame {
   constructor() {
-    this.canvas = document.getElementById('gameCanvas');
-    this.ctx = this.canvas.getContext('2d');
-    this.canvas.width = GAME_CONSTANTS.CANVAS_WIDTH;
-    this.canvas.height = GAME_CONSTANTS.CANVAS_HEIGHT;
-    
-    this.storage = new StorageManager();
-    this.audioManager = new AudioManager();
-    this.ui = new UIManager();
-    this.achievementManager = new AchievementManager();
-    this.particleSystem = new ParticleSystem();
-    
-    this.gameState = 'MENU';
-    this.gameMode = 'SURVIVAL';
-    this.isPaused = false;
-    this.isRunning = false;
-    
-    this.player = null;
-    this.zombies = [];
-    this.bullets = [];
-    this.projectiles = [];
-    this.loot = [];
-    this.map = null;
-    
-    this.wave = 1;
-    this.waveTimer = 0;
-    this.zombieSpawnTimer = 0;
-    this.difficultyMultiplier = 1;
-    this.score = 0;
-    this.totalPlayTime = 0;
-    this.survivalTime = 0;
-    
-    this.camera = { x: 0, y: 0 };
-    this.mouse = { x: 0, y: 0 };
-    this.keys = {};
-    
-    this.lastFrameTime = Date.now();
-    this.fps = 60;
-    this.fpsCounter = 0;
-    this.fpsTimer = 0;
-    
-    this.mouseSensitivity = 1;
-    this.screenShake = 0;
-    this.currentLevelIndex = 0;
-    
-    this.initializeEventListeners();
-    this.loadSettings();
-    this.showMainMenu();
+    try {
+      this.canvas = document.getElementById('gameCanvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.canvas.width = GAME_CONSTANTS.CANVAS_WIDTH;
+      this.canvas.height = GAME_CONSTANTS.CANVAS_HEIGHT;
+      
+      this.storage = new StorageManager();
+      this.audioManager = new AudioManager();
+      this.ui = new UIManager();
+      this.achievementManager = new AchievementManager();
+      this.particleSystem = new ParticleSystem();
+      
+      this.gameState = 'MENU';
+      this.gameMode = 'SURVIVAL';
+      this.isPaused = false;
+      this.isRunning = false;
+      
+      this.player = null;
+      this.zombies = [];
+      this.bullets = [];
+      this.projectiles = [];
+      this.loot = [];
+      this.map = null;
+      
+      this.wave = 1;
+      this.waveTimer = 0;
+      this.difficultyMultiplier = 1;
+      this.score = 0;
+      this.survivalTime = 0;
+      
+      this.camera = { x: 0, y: 0 };
+      this.mouse = { x: 0, y: 0 };
+      this.keys = {};
+      
+      this.lastFrameTime = Date.now();
+      this.fps = 60;
+      this.fpsCounter = 0;
+      this.fpsTimer = 0;
+      
+      this.mouseSensitivity = 1;
+      this.screenShake = 0;
+      
+      console.log('Game initialized successfully');
+      this.initializeEventListeners();
+      this.loadSettings();
+      this.showMainMenu();
+    } catch (error) {
+      console.error('Game initialization error:', error);
+    }
   }
 
   initializeEventListeners() {
@@ -55,7 +57,6 @@ class ZombieSurvivalGame {
     window.addEventListener('mouseup', (e) => this.onMouseUp(e));
     window.addEventListener('keydown', (e) => this.onKeyDown(e));
     window.addEventListener('keyup', (e) => this.onKeyUp(e));
-    window.addEventListener('resize', () => this.onWindowResize());
   }
 
   onMouseMove(e) {
@@ -79,12 +80,6 @@ class ZombieSurvivalGame {
       if (this.gameState === 'PLAYING') {
         this.togglePause();
       }
-    } else if (e.key === 'i' || e.key === 'I') {
-      if (this.gameState === 'PLAYING') {
-        this.ui.showMenu('inventoryMenu');
-      }
-    } else if (e.key === 'p' || e.key === 'P') {
-      this.togglePause();
     } else if (e.key === 'r' || e.key === 'R') {
       if (this.gameState === 'PLAYING' && this.player) {
         const weapon = this.player.getCurrentWeapon();
@@ -93,19 +88,12 @@ class ZombieSurvivalGame {
           this.audioManager.playReload();
         }
       }
-    } else if (e.key >= '1' && e.key <= '9') {
-      const weaponIndex = parseInt(e.key) - 1;
-      if (this.player && weaponIndex < this.player.weapons.length) {
-        this.player.switchWeapon(weaponIndex);
-      }
     }
   }
 
   onKeyUp(e) {
     this.keys[e.key.toLowerCase()] = false;
   }
-
-  onWindowResize() {}
 
   loadSettings() {
     const settings = this.storage.loadSettings();
@@ -123,6 +111,7 @@ class ZombieSurvivalGame {
   }
 
   startSurvivalMode() {
+    console.log('Starting survival mode...');
     this.gameMode = 'SURVIVAL';
     this.gameState = 'PLAYING';
     this.wave = 1;
@@ -133,17 +122,9 @@ class ZombieSurvivalGame {
     this.ui.hideMenu('mainMenu');
   }
 
-  startCampaignMode(levelIndex) {
-    this.gameMode = 'CAMPAIGN';
-    this.currentLevelIndex = levelIndex;
-    this.gameState = 'PLAYING';
-    this.isRunning = true;
-    this.initializeGame();
-    this.ui.hideMenu('campaignMenu');
-  }
-
   initializeGame() {
-    const mapData = GAME_CONSTANTS.MAPS[Math.floor(Math.random() * GAME_CONSTANTS.MAPS.length)];
+    console.log('Initializing game...');
+    const mapData = GAME_CONSTANTS.MAPS[0];
     this.map = new GameMap(mapData);
     
     const playerSpawn = { x: this.map.width / 2, y: this.map.height / 2 };
@@ -163,12 +144,13 @@ class ZombieSurvivalGame {
     this.projectiles = [];
     this.loot = [];
     this.spawnZombies(5);
+    console.log('Game initialized');
   }
 
   spawnZombies(count) {
     for (let i = 0; i < count; i++) {
       const spawn = this.map.getRandomSpawnPoint();
-      const zombieTypes = Object.keys(GAME_CONSTANTS.ZOMBIES).filter(z => z !== 'BOSS');
+      const zombieTypes = Object.keys(GAME_CONSTANTS.ZOMBIES);
       const type = Utils.getRandomElement(zombieTypes);
       this.zombies.push(new Zombie(spawn.x, spawn.y, type));
     }
@@ -186,25 +168,27 @@ class ZombieSurvivalGame {
   }
 
   update(deltaTime) {
-    if (this.gameState !== 'PLAYING' || this.isPaused) return;
+    if (this.gameState !== 'PLAYING' || this.isPaused || !this.player) return;
     
     this.map.update(deltaTime);
     this.survivalTime += deltaTime;
-    this.totalPlayTime += deltaTime;
     
     this.handlePlayerMovement(deltaTime);
     this.handlePlayerShooting(deltaTime);
     
     this.player.update(deltaTime);
     
-    this.zombies.forEach((zombie, index) => {
-      zombie.update(deltaTime, this.player);
+    for (let i = this.zombies.length - 1; i >= 0; i--) {
+      this.zombies[i].update(deltaTime, this.player);
       
-      this.bullets.forEach((bullet, bIndex) => {
+      for (let j = this.bullets.length - 1; j >= 0; j--) {
+        const bullet = this.bullets[j];
+        const zombie = this.zombies[i];
+        
         if (Utils.circleCollision(bullet.x, bullet.y, 5, zombie.x, zombie.y, zombie.width / 2)) {
           const isCrit = Math.random() < this.player.stats.critChance;
           if (zombie.takeDamage(bullet.damage, isCrit)) {
-            this.zombies.splice(index, 1);
+            this.zombies.splice(i, 1);
             this.score += zombie.xpReward * 10;
             this.player.addXP(zombie.xpReward);
             this.player.addMoney(zombie.moneyReward);
@@ -212,46 +196,15 @@ class ZombieSurvivalGame {
             this.particleSystem.emitBlood(zombie.x, zombie.y);
             this.audioManager.playZombieDeath();
           }
-          this.bullets.splice(bIndex, 1);
+          this.bullets.splice(j, 1);
+          break;
         }
-      });
-    });
+      }
+    }
     
     this.bullets = this.bullets.filter(b => b.active);
-    this.projectiles = this.projectiles.filter(p => p.active);
-    
-    this.projectiles.forEach((proj, index) => {
-      this.zombies.forEach((zombie, zIndex) => {
-        if (Utils.circleCollision(proj.x, proj.y, proj.radius, zombie.x, zombie.y, zombie.width / 2)) {
-          if (zombie.takeDamage(proj.damage)) {
-            this.zombies.splice(zIndex, 1);
-            this.score += zombie.xpReward * 15;
-            this.player.addXP(zombie.xpReward);
-            this.player.addMoney(zombie.moneyReward);
-          }
-          proj.explode();
-          this.particleSystem.emitExplosion(proj.x, proj.y);
-          this.audioManager.playExplosion();
-          this.screenShake = 0.2;
-        }
-      });
-      proj.update(deltaTime);
-    });
-    
-    this.loot = this.loot.filter(l => l.pickupRadius > 0);
-    this.loot.forEach((loot, index) => {
-      if (Utils.circleCollision(this.player.x, this.player.y, 30, loot.x, loot.y, loot.pickupRadius)) {
-        this.player.addAmmo(loot.amount);
-        this.loot.splice(index, 1);
-      }
-    });
-    
     this.bullets.forEach(b => b.update(deltaTime));
     this.particleSystem.update(deltaTime);
-    
-    if (this.screenShake > 0) {
-      this.screenShake -= deltaTime;
-    }
     
     this.updateWaveSystem(deltaTime);
     this.updateCamera();
@@ -301,12 +254,6 @@ class ZombieSurvivalGame {
           );
           this.bullets.push(bullet);
         }
-        
-        this.particleSystem.emitMuzzleFlash(
-          this.player.x + Math.cos(this.player.direction) * 25,
-          this.player.y + Math.sin(this.player.direction) * 25,
-          5
-        );
       }
     }
   }
@@ -359,52 +306,36 @@ class ZombieSurvivalGame {
     this.ctx.fillStyle = '#000';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
-    this.ctx.save();
-    
-    if (this.screenShake > 0) {
-      const shake = Math.sin(this.screenShake * 30) * 5;
-      this.ctx.translate(shake, shake);
-    }
-    
-    this.map.draw(this.ctx, this.camera.x, this.camera.y, this.canvas.width, this.canvas.height);
-    
-    const drawEntity = (entity) => {
-      const screenX = entity.x - this.camera.x;
-      const screenY = entity.y - this.camera.y;
-      if (screenX > -50 && screenX < this.canvas.width + 50 && screenY > -50 && screenY < this.canvas.height + 50) {
-        this.ctx.save();
-        this.ctx.translate(screenX, screenY);
-        entity.draw(this.ctx);
-        this.ctx.restore();
-      }
-    };
-    
-    this.zombies.forEach(z => drawEntity(z));
-    this.bullets.forEach(b => drawEntity(b));
-    this.projectiles.forEach(p => drawEntity(p));
-    this.loot.forEach(l => drawEntity(l));
-    
-    if (this.player) {
+    if (this.gameState === 'PLAYING' && this.map && this.player) {
+      this.ctx.save();
+      this.map.draw(this.ctx, this.camera.x, this.camera.y, this.canvas.width, this.canvas.height);
+      
+      const drawEntity = (entity) => {
+        const screenX = entity.x - this.camera.x;
+        const screenY = entity.y - this.camera.y;
+        if (screenX > -50 && screenX < this.canvas.width + 50 && screenY > -50 && screenY < this.canvas.height + 50) {
+          this.ctx.save();
+          this.ctx.translate(screenX, screenY);
+          entity.draw(this.ctx);
+          this.ctx.restore();
+        }
+      };
+      
+      this.zombies.forEach(z => drawEntity(z));
+      this.bullets.forEach(b => drawEntity(b));
+      this.particleSystem.draw(this.ctx);
       drawEntity(this.player);
+      
+      this.ctx.restore();
     }
     
-    this.particleSystem.draw(this.ctx);
-    
-    this.ctx.restore();
-    
-    this.drawUI();
     this.drawFPS();
-  }
-
-  drawUI() {
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   drawFPS() {
     this.ctx.fillStyle = '#00ff00';
     this.ctx.font = '12px Arial';
-    this.ctx.fillText(`FPS: ${this.fps}`, this.canvas.width - 100, 20);
+    this.ctx.fillText(`FPS: ${this.fps}`, 10, 20);
   }
 
   endGame() {
@@ -431,26 +362,36 @@ class ZombieSurvivalGame {
   }
 
   gameLoop() {
-    const now = Date.now();
-    let deltaTime = (now - this.lastFrameTime) / 1000;
-    deltaTime = Math.min(deltaTime, 0.016);
-    this.lastFrameTime = now;
-    
-    this.fpsCounter++;
-    this.fpsTimer += deltaTime;
-    if (this.fpsTimer >= 1) {
-      this.fps = this.fpsCounter;
-      this.fpsCounter = 0;
-      this.fpsTimer = 0;
+    try {
+      const now = Date.now();
+      let deltaTime = (now - this.lastFrameTime) / 1000;
+      deltaTime = Math.min(deltaTime, 0.016);
+      this.lastFrameTime = now;
+      
+      this.fpsCounter++;
+      this.fpsTimer += deltaTime;
+      if (this.fpsTimer >= 1) {
+        this.fps = this.fpsCounter;
+        this.fpsCounter = 0;
+        this.fpsTimer = 0;
+      }
+      
+      this.update(deltaTime);
+      this.draw();
+    } catch (error) {
+      console.error('Game loop error:', error);
     }
-    
-    this.update(deltaTime);
-    this.draw();
     
     requestAnimationFrame(() => this.gameLoop());
   }
 }
 
-window.audioManager = new AudioManager();
-window.gameInstance = new ZombieSurvivalGame();
-window.gameInstance.gameLoop();
+console.log('Loading game...');
+try {
+  window.audioManager = new AudioManager();
+  window.gameInstance = new ZombieSurvivalGame();
+  window.gameInstance.gameLoop();
+  console.log('Game started successfully');
+} catch (error) {
+  console.error('Failed to start game:', error);
+}
