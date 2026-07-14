@@ -1,2 +1,456 @@
 class ZombieSurvivalGame {
-  constructor() {\n    this.canvas = document.getElementById('gameCanvas');\n    this.ctx = this.canvas.getContext('2d');\n    this.canvas.width = GAME_CONSTANTS.CANVAS_WIDTH;\n    this.canvas.height = GAME_CONSTANTS.CANVAS_HEIGHT;\n    \n    this.storage = new StorageManager();\n    this.audioManager = new AudioManager();\n    this.ui = new UIManager();\n    this.achievementManager = new AchievementManager();\n    this.particleSystem = new ParticleSystem();\n    \n    this.gameState = 'MENU';\n    this.gameMode = 'SURVIVAL';\n    this.isPaused = false;\n    this.isRunning = false;\n    \n    this.player = null;\n    this.zombies = [];\n    this.bullets = [];\n    this.projectiles = [];\n    this.loot = [];\n    this.map = null;\n    \n    this.wave = 1;\n    this.waveTimer = 0;\n    this.zombieSpawnTimer = 0;\n    this.difficultyMultiplier = 1;\n    this.score = 0;\n    this.totalPlayTime = 0;\n    this.survivalTime = 0;\n    \n    this.camera = { x: 0, y: 0 };\n    this.mouse = { x: 0, y: 0 };\n    this.keys = {};\n    \n    this.lastFrameTime = Date.now();\n    this.fps = 60;\n    this.fpsCounter = 0;\n    this.fpsTimer = 0;\n    \n    this.mouseSensitivity = 1;\n    this.screenShake = 0;\n    this.currentLevelIndex = 0;\n    \n    this.initializeEventListeners();\n    this.loadSettings();\n    this.showMainMenu();\n  }\n\n  initializeEventListeners() {\n    window.addEventListener('mousemove', (e) => this.onMouseMove(e));\n    window.addEventListener('mousedown', (e) => this.onMouseDown(e));\n    window.addEventListener('mouseup', (e) => this.onMouseUp(e));\n    window.addEventListener('keydown', (e) => this.onKeyDown(e));\n    window.addEventListener('keyup', (e) => this.onKeyUp(e));\n    window.addEventListener('resize', () => this.onWindowResize());\n  }\n\n  onMouseMove(e) {\n    const rect = this.canvas.getBoundingClientRect();\n    this.mouse.x = e.clientX - rect.left;\n    this.mouse.y = e.clientY - rect.top;\n  }\n\n  onMouseDown(e) {\n    if (this.gameState === 'PLAYING' && this.player) {\n      this.player.addKill();\n    }\n  }\n\n  onMouseUp(e) {}\n\n  onKeyDown(e) {\n    this.keys[e.key.toLowerCase()] = true;\n    \n    if (e.key === 'Escape') {\n      if (this.gameState === 'PLAYING') {\n        this.togglePause();\n      }\n    } else if (e.key === 'i' || e.key === 'I') {\n      if (this.gameState === 'PLAYING') {\n        this.ui.showMenu('inventoryMenu');\n      }\n    } else if (e.key === 'p' || e.key === 'P') {\n      this.togglePause();\n    } else if (e.key === 'r' || e.key === 'R') {\n      if (this.gameState === 'PLAYING' && this.player) {\n        const weapon = this.player.getCurrentWeapon();\n        if (weapon) {\n          weapon.reload();\n          this.audioManager.playReload();\n        }\n      }\n    } else if (e.key >= '1' && e.key <= '9') {\n      const weaponIndex = parseInt(e.key) - 1;\n      if (this.player && weaponIndex < this.player.weapons.length) {\n        this.player.switchWeapon(weaponIndex);\n      }\n    }\n  }\n\n  onKeyUp(e) {\n    this.keys[e.key.toLowerCase()] = false;\n  }\n\n  onWindowResize() {\n    // Handle resize if needed\n  }\n\n  loadSettings() {\n    const settings = this.storage.loadSettings();\n    this.audioManager.setMasterVolume(settings.masterVolume);\n    this.audioManager.setMusicVolume(settings.musicVolume);\n    this.audioManager.setSFXVolume(settings.sfxVolume);\n    this.mouseSensitivity = settings.mouseSensitivity;\n  }\n\n  showMainMenu() {\n    this.gameState = 'MENU';\n    this.ui.showMainMenu();\n    const highScore = this.storage.getHighScore();\n    document.getElementById('high-score').textContent = highScore;\n  }\n\n  startSurvivalMode() {\n    this.gameMode = 'SURVIVAL';\n    this.gameState = 'PLAYING';\n    this.wave = 1;\n    this.score = 0;\n    this.survivalTime = 0;\n    this.isRunning = true;\n    this.initializeGame();\n    this.ui.hideMenu('mainMenu');\n  }\n\n  startCampaignMode(levelIndex) {\n    this.gameMode = 'CAMPAIGN';\n    this.currentLevelIndex = levelIndex;\n    this.gameState = 'PLAYING';\n    this.isRunning = true;\n    this.initializeGame();\n    this.ui.hideMenu('campaignMenu');\n  }\n\n  initializeGame() {\n    const mapData = GAME_CONSTANTS.MAPS[Math.floor(Math.random() * GAME_CONSTANTS.MAPS.length)];\n    this.map = new GameMap(mapData);\n    \n    const playerSpawn = { x: this.map.width / 2, y: this.map.height / 2 };\n    this.player = new Player(playerSpawn.x, playerSpawn.y);\n    \n    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.GLOCK);\n    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.MP5);\n    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.PUMP_SHOTGUN);\n    \n    const weapon = this.player.getCurrentWeapon();\n    if (weapon) {\n      weapon.currentAmmo = weapon.magazineSize;\n    }\n    \n    this.zombies = [];\n    this.bullets = [];\n    this.projectiles = [];\n    this.loot = [];\n    this.spawnZombies(5);\n  }\n\n  spawnZombies(count) {\n    for (let i = 0; i < count; i++) {\n      const spawn = this.map.getRandomSpawnPoint();\n      const zombieTypes = Object.keys(GAME_CONSTANTS.ZOMBIES).filter(z => z !== 'BOSS');\n      const type = Utils.getRandomElement(zombieTypes);\n      this.zombies.push(new Zombie(spawn.x, spawn.y, type));\n    }\n  }\n\n  togglePause() {\n    if (this.gameState === 'PLAYING') {\n      this.isPaused = !this.isPaused;\n      if (this.isPaused) {\n        this.ui.showMenu('pauseMenu');\n      } else {\n        this.ui.hideMenu('pauseMenu');\n      }\n    }\n  }\n\n  update(deltaTime) {\n    if (this.gameState !== 'PLAYING' || this.isPaused) return;\n    \n    this.map.update(deltaTime);\n    this.survivalTime += deltaTime;\n    this.totalPlayTime += deltaTime;\n    \n    this.handlePlayerMovement(deltaTime);\n    this.handlePlayerShooting(deltaTime);\n    \n    this.player.update(deltaTime);\n    \n    this.zombies.forEach((zombie, index) => {\n      zombie.update(deltaTime, this.player);\n      \n      this.bullets.forEach((bullet, bIndex) => {\n        if (Utils.circleCollision(bullet.x, bullet.y, 5, zombie.x, zombie.y, zombie.width / 2)) {\n          const isCrit = Math.random() < this.player.stats.critChance;\n          if (zombie.takeDamage(bullet.damage, isCrit)) {\n            this.zombies.splice(index, 1);\n            this.score += zombie.xpReward * 10;\n            this.player.addXP(zombie.xpReward);\n            this.player.addMoney(zombie.moneyReward);\n            this.player.addKill();\n            this.particleSystem.emitBlood(zombie.x, zombie.y);\n            this.audioManager.playZombieDeath();\n          }\n          this.bullets.splice(bIndex, 1);\n        }\n      });\n    });\n    \n    this.bullets = this.bullets.filter(b => b.active);\n    this.projectiles = this.projectiles.filter(p => p.active);\n    \n    this.projectiles.forEach((proj, index) => {\n      this.zombies.forEach((zombie, zIndex) => {\n        if (Utils.circleCollision(proj.x, proj.y, proj.radius, zombie.x, zombie.y, zombie.width / 2)) {\n          if (zombie.takeDamage(proj.damage)) {\n            this.zombies.splice(zIndex, 1);\n            this.score += zombie.xpReward * 15;\n            this.player.addXP(zombie.xpReward);\n            this.player.addMoney(zombie.moneyReward);\n          }\n          proj.explode();\n          this.particleSystem.emitExplosion(proj.x, proj.y);\n          this.audioManager.playExplosion();\n          this.screenShake = 0.2;\n        }\n      });\n      proj.update(deltaTime);\n    });\n    \n    this.loot = this.loot.filter(l => l.pickupRadius > 0);\n    this.loot.forEach((loot, index) => {\n      if (Utils.circleCollision(this.player.x, this.player.y, 30, loot.x, loot.y, loot.pickupRadius)) {\n        this.player.addAmmo(loot.amount);\n        this.loot.splice(index, 1);\n      }\n    });\n    \n    this.bullets.forEach(b => b.update(deltaTime));\n    this.particleSystem.update(deltaTime);\n    \n    if (this.screenShake > 0) {\n      this.screenShake -= deltaTime;\n    }\n    \n    this.updateWaveSystem(deltaTime);\n    this.updateCamera();\n    this.updateHUD();\n    \n    if (this.player.health <= 0) {\n      this.endGame();\n    }\n  }\n\n  handlePlayerMovement(deltaTime) {\n    let dx = 0;\n    let dy = 0;\n    \n    if (this.keys['w'] || this.keys['arrowup']) dy -= 1;\n    if (this.keys['s'] || this.keys['arrowdown']) dy += 1;\n    if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;\n    if (this.keys['d'] || this.keys['arrowright']) dx += 1;\n    \n    this.player.isRunning = this.keys['shift'];\n    this.player.isCrouching = this.keys['control'];\n    \n    this.player.move(dx, dy, deltaTime);\n    \n    const angle = Utils.angle(this.canvas.width / 2, this.canvas.height / 2, this.mouse.x, this.mouse.y);\n    this.player.setDirection(angle);\n  }\n\n  handlePlayerShooting(deltaTime) {\n    if (this.keys['mousedown']) {\n      const weapon = this.player.getCurrentWeapon();\n      if (weapon && weapon.canFire()) {\n        weapon.fire();\n        this.audioManager.playGunshot();\n        \n        const bulletCount = weapon.type === 'shotgun' ? 8 : 1;\n        for (let i = 0; i < bulletCount; i++) {\n          const spread = weapon.getBulletSpread();\n          const recoil = weapon.getRecoil();\n          const bulletAngle = this.player.direction + spread + recoil;\n          const bullet = new Bullet(\n            this.player.x + Math.cos(this.player.direction) * 25,\n            this.player.y + Math.sin(this.player.direction) * 25,\n            bulletAngle,\n            400,\n            weapon.damage\n          );\n          this.bullets.push(bullet);\n        }\n        \n        this.particleSystem.emitMuzzleFlash(\n          this.player.x + Math.cos(this.player.direction) * 25,\n          this.player.y + Math.sin(this.player.direction) * 25,\n          5\n        );\n      }\n    }\n  }\n\n  updateWaveSystem(deltaTime) {\n    this.waveTimer += deltaTime;\n    \n    if (this.zombies.length === 0 && this.waveTimer > 3) {\n      this.wave++;\n      this.difficultyMultiplier = 1 + (this.wave * 0.1);\n      const zombieCount = Math.floor(5 + this.wave * 1.5);\n      this.spawnZombies(zombieCount);\n      this.waveTimer = 0;\n      \n      this.player.heal(20);\n      this.score += 500 * this.wave;\n    }\n  }\n\n  updateCamera() {\n    this.camera.x = this.player.x - this.canvas.width / 2;\n    this.camera.y = this.player.y - this.canvas.height / 2;\n    \n    this.camera.x = Math.max(0, Math.min(this.camera.x, this.map.width - this.canvas.width));\n    this.camera.y = Math.max(0, Math.min(this.camera.y, this.map.height - this.canvas.height));\n  }\n\n  updateHUD() {\n    if (this.player.getCurrentWeapon()) {\n      this.ui.updateHUD(\n        {\n          health: this.player.health,\n          maxHealth: this.player.maxHealth,\n          armor: this.player.armor,\n          maxArmor: this.player.maxArmor,\n          stamina: this.player.stamina,\n          maxStamina: this.player.maxStamina,\n          currentWeapon: this.player.getCurrentWeapon(),\n          level: this.player.level,\n          xp: this.player.xp,\n          xpNeeded: this.player.xpNeeded,\n          money: this.player.money\n        },\n        { wave: this.wave }\n      );\n    }\n  }\n\n  draw() {\n    this.ctx.fillStyle = '#000';\n    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);\n    \n    this.ctx.save();\n    \n    if (this.screenShake > 0) {\n      const shake = Math.sin(this.screenShake * 30) * 5;\n      this.ctx.translate(shake, shake);\n    }\n    \n    this.map.draw(this.ctx, this.camera.x, this.camera.y, this.canvas.width, this.canvas.height);\n    \n    const drawEntity = (entity) => {\n      const screenX = entity.x - this.camera.x;\n      const screenY = entity.y - this.camera.y;\n      if (screenX > -50 && screenX < this.canvas.width + 50 && screenY > -50 && screenY < this.canvas.height + 50) {\n        this.ctx.save();\n        this.ctx.translate(screenX, screenY);\n        entity.draw(this.ctx);\n        this.ctx.restore();\n      }\n    };\n    \n    this.zombies.forEach(z => drawEntity(z));\n    this.bullets.forEach(b => drawEntity(b));\n    this.projectiles.forEach(p => drawEntity(p));\n    this.loot.forEach(l => drawEntity(l));\n    \n    if (this.player) {\n      drawEntity(this.player);\n    }\n    \n    this.particleSystem.draw(this.ctx);\n    \n    this.ctx.restore();\n    \n    this.drawUI();\n    this.drawFPS();\n  }\n\n  drawUI() {\n    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';\n    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);\n  }\n\n  drawFPS() {\n    this.ctx.fillStyle = '#00ff00';\n    this.ctx.font = '12px Arial';\n    this.ctx.fillText(`FPS: ${this.fps}`, this.canvas.width - 100, 20);\n  }\n\n  endGame() {\n    this.gameState = 'GAME_OVER';\n    this.isRunning = false;\n    \n    const stats = {\n      wave: this.wave,\n      kills: this.player.kills,\n      survivalTime: this.survivalTime,\n      money: this.player.money,\n      score: this.score\n    };\n    \n    this.storage.saveHighScore(this.score);\n    this.ui.showGameOver(stats);\n  }\n\n  restart() {\n    this.gameState = 'MENU';\n    this.isPaused = false;\n    this.isRunning = false;\n    this.showMainMenu();\n  }\n\n  gameLoop() {\n    const now = Date.now();\n    let deltaTime = (now - this.lastFrameTime) / 1000;\n    deltaTime = Math.min(deltaTime, 0.016);\n    this.lastFrameTime = now;\n    \n    this.fpsCounter++;\n    this.fpsTimer += deltaTime;\n    if (this.fpsTimer >= 1) {\n      this.fps = this.fpsCounter;\n      this.fpsCounter = 0;\n      this.fpsTimer = 0;\n    }\n    \n    this.update(deltaTime);\n    this.draw();\n    \n    requestAnimationFrame(() => this.gameLoop());\n  }\n}\n\nwindow.audioManager = new AudioManager();\nwindow.gameInstance = new ZombieSurvivalGame();\nwindow.gameInstance.gameLoop();\n
+  constructor() {
+    this.canvas = document.getElementById('gameCanvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.canvas.width = GAME_CONSTANTS.CANVAS_WIDTH;
+    this.canvas.height = GAME_CONSTANTS.CANVAS_HEIGHT;
+    
+    this.storage = new StorageManager();
+    this.audioManager = new AudioManager();
+    this.ui = new UIManager();
+    this.achievementManager = new AchievementManager();
+    this.particleSystem = new ParticleSystem();
+    
+    this.gameState = 'MENU';
+    this.gameMode = 'SURVIVAL';
+    this.isPaused = false;
+    this.isRunning = false;
+    
+    this.player = null;
+    this.zombies = [];
+    this.bullets = [];
+    this.projectiles = [];
+    this.loot = [];
+    this.map = null;
+    
+    this.wave = 1;
+    this.waveTimer = 0;
+    this.zombieSpawnTimer = 0;
+    this.difficultyMultiplier = 1;
+    this.score = 0;
+    this.totalPlayTime = 0;
+    this.survivalTime = 0;
+    
+    this.camera = { x: 0, y: 0 };
+    this.mouse = { x: 0, y: 0 };
+    this.keys = {};
+    
+    this.lastFrameTime = Date.now();
+    this.fps = 60;
+    this.fpsCounter = 0;
+    this.fpsTimer = 0;
+    
+    this.mouseSensitivity = 1;
+    this.screenShake = 0;
+    this.currentLevelIndex = 0;
+    
+    this.initializeEventListeners();
+    this.loadSettings();
+    this.showMainMenu();
+  }
+
+  initializeEventListeners() {
+    window.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    window.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    window.addEventListener('mouseup', (e) => this.onMouseUp(e));
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
+    window.addEventListener('keyup', (e) => this.onKeyUp(e));
+    window.addEventListener('resize', () => this.onWindowResize());
+  }
+
+  onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse.x = e.clientX - rect.left;
+    this.mouse.y = e.clientY - rect.top;
+  }
+
+  onMouseDown(e) {
+    this.keys['mousedown'] = true;
+  }
+
+  onMouseUp(e) {
+    this.keys['mousedown'] = false;
+  }
+
+  onKeyDown(e) {
+    this.keys[e.key.toLowerCase()] = true;
+    
+    if (e.key === 'Escape') {
+      if (this.gameState === 'PLAYING') {
+        this.togglePause();
+      }
+    } else if (e.key === 'i' || e.key === 'I') {
+      if (this.gameState === 'PLAYING') {
+        this.ui.showMenu('inventoryMenu');
+      }
+    } else if (e.key === 'p' || e.key === 'P') {
+      this.togglePause();
+    } else if (e.key === 'r' || e.key === 'R') {
+      if (this.gameState === 'PLAYING' && this.player) {
+        const weapon = this.player.getCurrentWeapon();
+        if (weapon) {
+          weapon.reload();
+          this.audioManager.playReload();
+        }
+      }
+    } else if (e.key >= '1' && e.key <= '9') {
+      const weaponIndex = parseInt(e.key) - 1;
+      if (this.player && weaponIndex < this.player.weapons.length) {
+        this.player.switchWeapon(weaponIndex);
+      }
+    }
+  }
+
+  onKeyUp(e) {
+    this.keys[e.key.toLowerCase()] = false;
+  }
+
+  onWindowResize() {}
+
+  loadSettings() {
+    const settings = this.storage.loadSettings();
+    this.audioManager.setMasterVolume(settings.masterVolume);
+    this.audioManager.setMusicVolume(settings.musicVolume);
+    this.audioManager.setSFXVolume(settings.sfxVolume);
+    this.mouseSensitivity = settings.mouseSensitivity;
+  }
+
+  showMainMenu() {
+    this.gameState = 'MENU';
+    this.ui.showMainMenu();
+    const highScore = this.storage.getHighScore();
+    document.getElementById('high-score').textContent = highScore;
+  }
+
+  startSurvivalMode() {
+    this.gameMode = 'SURVIVAL';
+    this.gameState = 'PLAYING';
+    this.wave = 1;
+    this.score = 0;
+    this.survivalTime = 0;
+    this.isRunning = true;
+    this.initializeGame();
+    this.ui.hideMenu('mainMenu');
+  }
+
+  startCampaignMode(levelIndex) {
+    this.gameMode = 'CAMPAIGN';
+    this.currentLevelIndex = levelIndex;
+    this.gameState = 'PLAYING';
+    this.isRunning = true;
+    this.initializeGame();
+    this.ui.hideMenu('campaignMenu');
+  }
+
+  initializeGame() {
+    const mapData = GAME_CONSTANTS.MAPS[Math.floor(Math.random() * GAME_CONSTANTS.MAPS.length)];
+    this.map = new GameMap(mapData);
+    
+    const playerSpawn = { x: this.map.width / 2, y: this.map.height / 2 };
+    this.player = new Player(playerSpawn.x, playerSpawn.y);
+    
+    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.GLOCK);
+    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.MP5);
+    this.player.addWeapon(GAME_CONSTANTS.WEAPONS.PUMP_SHOTGUN);
+    
+    const weapon = this.player.getCurrentWeapon();
+    if (weapon) {
+      weapon.currentAmmo = weapon.magazineSize;
+    }
+    
+    this.zombies = [];
+    this.bullets = [];
+    this.projectiles = [];
+    this.loot = [];
+    this.spawnZombies(5);
+  }
+
+  spawnZombies(count) {
+    for (let i = 0; i < count; i++) {
+      const spawn = this.map.getRandomSpawnPoint();
+      const zombieTypes = Object.keys(GAME_CONSTANTS.ZOMBIES).filter(z => z !== 'BOSS');
+      const type = Utils.getRandomElement(zombieTypes);
+      this.zombies.push(new Zombie(spawn.x, spawn.y, type));
+    }
+  }
+
+  togglePause() {
+    if (this.gameState === 'PLAYING') {
+      this.isPaused = !this.isPaused;
+      if (this.isPaused) {
+        this.ui.showMenu('pauseMenu');
+      } else {
+        this.ui.hideMenu('pauseMenu');
+      }
+    }
+  }
+
+  update(deltaTime) {
+    if (this.gameState !== 'PLAYING' || this.isPaused) return;
+    
+    this.map.update(deltaTime);
+    this.survivalTime += deltaTime;
+    this.totalPlayTime += deltaTime;
+    
+    this.handlePlayerMovement(deltaTime);
+    this.handlePlayerShooting(deltaTime);
+    
+    this.player.update(deltaTime);
+    
+    this.zombies.forEach((zombie, index) => {
+      zombie.update(deltaTime, this.player);
+      
+      this.bullets.forEach((bullet, bIndex) => {
+        if (Utils.circleCollision(bullet.x, bullet.y, 5, zombie.x, zombie.y, zombie.width / 2)) {
+          const isCrit = Math.random() < this.player.stats.critChance;
+          if (zombie.takeDamage(bullet.damage, isCrit)) {
+            this.zombies.splice(index, 1);
+            this.score += zombie.xpReward * 10;
+            this.player.addXP(zombie.xpReward);
+            this.player.addMoney(zombie.moneyReward);
+            this.player.addKill();
+            this.particleSystem.emitBlood(zombie.x, zombie.y);
+            this.audioManager.playZombieDeath();
+          }
+          this.bullets.splice(bIndex, 1);
+        }
+      });
+    });
+    
+    this.bullets = this.bullets.filter(b => b.active);
+    this.projectiles = this.projectiles.filter(p => p.active);
+    
+    this.projectiles.forEach((proj, index) => {
+      this.zombies.forEach((zombie, zIndex) => {
+        if (Utils.circleCollision(proj.x, proj.y, proj.radius, zombie.x, zombie.y, zombie.width / 2)) {
+          if (zombie.takeDamage(proj.damage)) {
+            this.zombies.splice(zIndex, 1);
+            this.score += zombie.xpReward * 15;
+            this.player.addXP(zombie.xpReward);
+            this.player.addMoney(zombie.moneyReward);
+          }
+          proj.explode();
+          this.particleSystem.emitExplosion(proj.x, proj.y);
+          this.audioManager.playExplosion();
+          this.screenShake = 0.2;
+        }
+      });
+      proj.update(deltaTime);
+    });
+    
+    this.loot = this.loot.filter(l => l.pickupRadius > 0);
+    this.loot.forEach((loot, index) => {
+      if (Utils.circleCollision(this.player.x, this.player.y, 30, loot.x, loot.y, loot.pickupRadius)) {
+        this.player.addAmmo(loot.amount);
+        this.loot.splice(index, 1);
+      }
+    });
+    
+    this.bullets.forEach(b => b.update(deltaTime));
+    this.particleSystem.update(deltaTime);
+    
+    if (this.screenShake > 0) {
+      this.screenShake -= deltaTime;
+    }
+    
+    this.updateWaveSystem(deltaTime);
+    this.updateCamera();
+    this.updateHUD();
+    
+    if (this.player.health <= 0) {
+      this.endGame();
+    }
+  }
+
+  handlePlayerMovement(deltaTime) {
+    let dx = 0;
+    let dy = 0;
+    
+    if (this.keys['w'] || this.keys['arrowup']) dy -= 1;
+    if (this.keys['s'] || this.keys['arrowdown']) dy += 1;
+    if (this.keys['a'] || this.keys['arrowleft']) dx -= 1;
+    if (this.keys['d'] || this.keys['arrowright']) dx += 1;
+    
+    this.player.isRunning = this.keys['shift'];
+    this.player.isCrouching = this.keys['control'];
+    
+    this.player.move(dx, dy, deltaTime);
+    
+    const angle = Utils.angle(this.canvas.width / 2, this.canvas.height / 2, this.mouse.x, this.mouse.y);
+    this.player.setDirection(angle);
+  }
+
+  handlePlayerShooting(deltaTime) {
+    if (this.keys['mousedown']) {
+      const weapon = this.player.getCurrentWeapon();
+      if (weapon && weapon.canFire()) {
+        weapon.fire();
+        this.audioManager.playGunshot();
+        
+        const bulletCount = weapon.type === 'shotgun' ? 8 : 1;
+        for (let i = 0; i < bulletCount; i++) {
+          const spread = weapon.getBulletSpread();
+          const recoil = weapon.getRecoil();
+          const bulletAngle = this.player.direction + spread + recoil;
+          const bullet = new Bullet(
+            this.player.x + Math.cos(this.player.direction) * 25,
+            this.player.y + Math.sin(this.player.direction) * 25,
+            bulletAngle,
+            400,
+            weapon.damage
+          );
+          this.bullets.push(bullet);
+        }
+        
+        this.particleSystem.emitMuzzleFlash(
+          this.player.x + Math.cos(this.player.direction) * 25,
+          this.player.y + Math.sin(this.player.direction) * 25,
+          5
+        );
+      }
+    }
+  }
+
+  updateWaveSystem(deltaTime) {
+    this.waveTimer += deltaTime;
+    
+    if (this.zombies.length === 0 && this.waveTimer > 3) {
+      this.wave++;
+      this.difficultyMultiplier = 1 + (this.wave * 0.1);
+      const zombieCount = Math.floor(5 + this.wave * 1.5);
+      this.spawnZombies(zombieCount);
+      this.waveTimer = 0;
+      
+      this.player.heal(20);
+      this.score += 500 * this.wave;
+    }
+  }
+
+  updateCamera() {
+    this.camera.x = this.player.x - this.canvas.width / 2;
+    this.camera.y = this.player.y - this.canvas.height / 2;
+    
+    this.camera.x = Math.max(0, Math.min(this.camera.x, this.map.width - this.canvas.width));
+    this.camera.y = Math.max(0, Math.min(this.camera.y, this.map.height - this.canvas.height));
+  }
+
+  updateHUD() {
+    if (this.player.getCurrentWeapon()) {
+      this.ui.updateHUD(
+        {
+          health: this.player.health,
+          maxHealth: this.player.maxHealth,
+          armor: this.player.armor,
+          maxArmor: this.player.maxArmor,
+          stamina: this.player.stamina,
+          maxStamina: this.player.maxStamina,
+          currentWeapon: this.player.getCurrentWeapon(),
+          level: this.player.level,
+          xp: this.player.xp,
+          xpNeeded: this.player.xpNeeded,
+          money: this.player.money
+        },
+        { wave: this.wave }
+      );
+    }
+  }
+
+  draw() {
+    this.ctx.fillStyle = '#000';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    this.ctx.save();
+    
+    if (this.screenShake > 0) {
+      const shake = Math.sin(this.screenShake * 30) * 5;
+      this.ctx.translate(shake, shake);
+    }
+    
+    this.map.draw(this.ctx, this.camera.x, this.camera.y, this.canvas.width, this.canvas.height);
+    
+    const drawEntity = (entity) => {
+      const screenX = entity.x - this.camera.x;
+      const screenY = entity.y - this.camera.y;
+      if (screenX > -50 && screenX < this.canvas.width + 50 && screenY > -50 && screenY < this.canvas.height + 50) {
+        this.ctx.save();
+        this.ctx.translate(screenX, screenY);
+        entity.draw(this.ctx);
+        this.ctx.restore();
+      }
+    };
+    
+    this.zombies.forEach(z => drawEntity(z));
+    this.bullets.forEach(b => drawEntity(b));
+    this.projectiles.forEach(p => drawEntity(p));
+    this.loot.forEach(l => drawEntity(l));
+    
+    if (this.player) {
+      drawEntity(this.player);
+    }
+    
+    this.particleSystem.draw(this.ctx);
+    
+    this.ctx.restore();
+    
+    this.drawUI();
+    this.drawFPS();
+  }
+
+  drawUI() {
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  drawFPS() {
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.font = '12px Arial';
+    this.ctx.fillText(`FPS: ${this.fps}`, this.canvas.width - 100, 20);
+  }
+
+  endGame() {
+    this.gameState = 'GAME_OVER';
+    this.isRunning = false;
+    
+    const stats = {
+      wave: this.wave,
+      kills: this.player.kills,
+      survivalTime: this.survivalTime,
+      money: this.player.money,
+      score: this.score
+    };
+    
+    this.storage.saveHighScore(this.score);
+    this.ui.showGameOver(stats);
+  }
+
+  restart() {
+    this.gameState = 'MENU';
+    this.isPaused = false;
+    this.isRunning = false;
+    this.showMainMenu();
+  }
+
+  gameLoop() {
+    const now = Date.now();
+    let deltaTime = (now - this.lastFrameTime) / 1000;
+    deltaTime = Math.min(deltaTime, 0.016);
+    this.lastFrameTime = now;
+    
+    this.fpsCounter++;
+    this.fpsTimer += deltaTime;
+    if (this.fpsTimer >= 1) {
+      this.fps = this.fpsCounter;
+      this.fpsCounter = 0;
+      this.fpsTimer = 0;
+    }
+    
+    this.update(deltaTime);
+    this.draw();
+    
+    requestAnimationFrame(() => this.gameLoop());
+  }
+}
+
+window.audioManager = new AudioManager();
+window.gameInstance = new ZombieSurvivalGame();
+window.gameInstance.gameLoop();
